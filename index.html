@@ -184,7 +184,7 @@ button:hover {
   <video src="smoke4.mp4" autoplay muted loop playsinline></video>
 </section>
 
-<header> Sentient— AI Movie Assistant</header>
+<header>🎬 Dobby AI — Smart Movie Finder</header>
 
 <main>
   <section id="leftPanel">
@@ -229,10 +229,6 @@ Return ONLY valid JSON:
  "director": "<director name or null>",
  "summary": "<short summary of intent>"
 }
-Examples:
-"action movies after 2010" → {"type":"movie","genre_id":28,"year_after":"2010"}
-"Korean dramas 2021" → {"type":"tv","language":"ko","genre_id":18,"year":"2021"}
-"war movies with Tom Hanks after 2000" → {"type":"movie","actor":"Tom Hanks","genre_id":10752,"year_after":"2000"}
 `;
 
 let conversation = [{ role: "system", content: ANALYSIS_PROMPT }];
@@ -252,9 +248,7 @@ function setStatus(msg,loading=false){
   el("status").innerHTML=loading?`<span class='spinner-inline'></span>${msg}`:msg;
 }
 function addCard(m){
-  const imdbLink = m.title ? 
-    `https://www.imdb.com/find/?q=${encodeURIComponent(m.title)}` :
-    `https://www.imdb.com/`;
+  const imdbLink = `https://www.imdb.com/find/?q=${encodeURIComponent((m.title || m.name) + " " + ((m.release_date || m.first_air_date || "").slice(0,4)))}`;
   const div=document.createElement("div");
   div.className="movie-card";
   const img=m.poster_path?`<img src='https://image.tmdb.org/t/p/w500${m.poster_path}'/>`:"";
@@ -301,16 +295,28 @@ async function discover(type,filters){
   const url=new URL(`https://api.themoviedb.org/3/discover/${type}`);
   url.searchParams.set("api_key",TMDB_KEY);
   url.searchParams.set("sort_by","popularity.desc");
+  
   if(filters.language) url.searchParams.set("with_original_language",filters.language);
   if(filters.genre_id) url.searchParams.set("with_genres",filters.genre_id);
-  if(filters.year) url.searchParams.set("primary_release_year",filters.year);
-  if(filters.year_after) url.searchParams.set("primary_release_date.gte",`${filters.year_after}-01-01`);
-  if(filters.year_before) url.searchParams.set("primary_release_date.lte",`${filters.year_before}-12-31`);
+  if(filters.year) {
+    if(type==="tv") url.searchParams.set("first_air_date_year",filters.year);
+    else url.searchParams.set("primary_release_year",filters.year);
+  }
+  if(filters.year_after){
+    const key = type==="tv" ? "first_air_date.gte" : "primary_release_date.gte";
+    url.searchParams.set(key,`${filters.year_after}-01-01`);
+  }
+  if(filters.year_before){
+    const key = type==="tv" ? "first_air_date.lte" : "primary_release_date.lte";
+    url.searchParams.set(key,`${filters.year_before}-12-31`);
+  }
   if(filters.min_rating) url.searchParams.set("vote_average.gte",filters.min_rating);
+
   const res=await fetch(url);
   const data=await res.json();
   return data.results||[];
 }
+
 async function handleRequest(req){
   let items=[];
   if(req.actor){
@@ -328,6 +334,7 @@ async function handleRequest(req){
   if(req.min_rating) items=items.filter(m=>(m.vote_average||0)>=req.min_rating);
   return items;
 }
+
 async function onAsk(){
   const txt=el("userText").value.trim();
   if(!txt) return;
@@ -351,6 +358,7 @@ async function onAsk(){
     setStatus("");
   }
 }
+
 el("askBtn").addEventListener("click",onAsk);
 el("clearBtn").addEventListener("click",()=>{
   el("chatArea").innerHTML="";
