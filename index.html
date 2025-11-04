@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Dobby AI — Smart Movie Finder</title>
+<style>
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background: radial-gradient(circle at top, #0b0c10 0%, #000 100%);
+  color: #f2f2f2;
+  overflow: hidden;
+}
+video#bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: brightness(0.5) blur(2px);
+  z-index: -3;
+}
+.bg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: -2;
+  backdrop-filter: blur(6px);
+}
+
+/* 🔹 Banner Section */
+#videoBanner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  height: 25vh;
+  z-index: 1;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(4px);
+}
+#videoBanner video {
+  width: 22%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 14px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+  transition: transform 0.3s ease;
+}
+#videoBanner video:hover { transform: scale(1.05); }
+
+header {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #00ffc3;
+  margin-top: 27vh; /* move content below banner */
+}
+main {
+  display: flex;
+  height: calc(100vh - 27vh - 80px);
+  padding: 0 20px 20px;
+  gap: 20px;
+}
+#leftPanel {
+  flex: 2;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+#rightPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+#chatArea {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 15px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.3);
+}
+.message {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.user strong { color: #00b7ff; }
+.bot strong { color: #00ffc3; }
+#controls {
+  display: flex;
+  gap: 10px;
+}
+#userText {
+  flex: 1;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: none;
+  font-size: 1rem;
+  outline: none;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+button {
+  background: linear-gradient(135deg,#00ffc3,#00b7ff);
+  border: none;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: #000;
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+}
+#status {
+  margin-top: 10px;
+  font-style: italic;
+  color: #aaa;
+}
+.spinner-inline {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #00ffc3;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,minmax(220px,1fr));
+  gap: 15px;
+  width: 100%;
+}
+.movie-card {
+  background: rgba(255,255,255,0.07);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 12px rgba(0,0,0,0.3);
+  transition: transform .2s;
+}
+.movie-card:hover { transform: scale(1.03); }
+.movie-card img {
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+}
+.movie-card .info { padding: 10px; }
+.movie-card h5 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  color: #00ffc3;
+}
+.movie-card a {
+  color: #00b7ff;
+  text-decoration: none;
+}
+.movie-card a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- 🔹 Background -->
+<video id="bg" autoplay muted playsinline></video>
+<div class="bg-overlay"></div>
+
+<!-- 🔹 Banner -->
+<section id="videoBanner">
+  <video src="smoke1.mp4" autoplay muted loop playsinline></video>
+  <video src="smoke2.mp4" autoplay muted loop playsinline></video>
+  <video src="smoke3.mp4" autoplay muted loop playsinline></video>
+  <video src="smoke4.mp4" autoplay muted loop playsinline></video>
+</section>
+
+<header> Sentient— AI Movie Assistant</header>
+
+<main>
+  <section id="leftPanel">
+    <div id="results"></div>
+  </section>
+  <section id="rightPanel">
+    <div id="chatArea"></div>
+    <div id="controls">
+      <input id="userText" type="text" placeholder="Ask about movies... e.g. 'Action movies 2015 Tom Cruise'">
+      <button id="askBtn">Ask</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+    <div id="status"></div>
+  </section>
+</main>
+
+<script>
+const FIREWORKS_KEY = "fw_3ZGLzhbzx5RjAdU8mNQt4ZNb";
+const FIREWORKS_MODEL = "accounts/fireworks/models/llama-v3p1-70b-instruct";
+const TMDB_KEY = "4293f023fa6ee20e8778deb208322c8a";
+
+const GENRE_IDS = {
+  action: 28, adventure: 12, animation: 16, comedy: 35, crime: 80,
+  documentary: 99, drama: 18, family: 10751, fantasy: 14, history: 36,
+  horror: 27, music: 10402, mystery: 9648, romance: 10749,
+  sci_fi: 878, tv_movie: 10770, thriller: 53, war: 10752, western: 37
+};
+
+const ANALYSIS_PROMPT = `
+You are Dobby, a smart entertainment assistant.
+Analyze the user's question and identify filters.
+Return ONLY valid JSON:
+{
+ "type": "movie" or "tv",
+ "genre_id": "<TMDB genre id number or null>",
+ "language": "<ISO code or null>",
+ "year": "<exact year or null>",
+ "year_after": "<min year or null>",
+ "year_before": "<max year or null>",
+ "min_rating": "<minimum rating or null>",
+ "actor": "<actor name or null>",
+ "director": "<director name or null>",
+ "summary": "<short summary of intent>"
+}
+Examples:
+"action movies after 2010" → {"type":"movie","genre_id":28,"year_after":"2010"}
+"Korean dramas 2021" → {"type":"tv","language":"ko","genre_id":18,"year":"2021"}
+"war movies with Tom Hanks after 2000" → {"type":"movie","actor":"Tom Hanks","genre_id":10752,"year_after":"2000"}
+`;
+
+let conversation = [{ role: "system", content: ANALYSIS_PROMPT }];
+let contextFilters = {};
+
+function el(id){ return document.getElementById(id); }
+function append(role,text){
+  const div=document.createElement("div");
+  div.className="message";
+  div.innerHTML=role==="user"
+    ? `<div class='user'><strong>You:</strong> ${text}</div>`
+    : `<div class='bot'><strong>Dobby:</strong> ${text}</div>`;
+  el("chatArea").appendChild(div);
+  el("chatArea").scrollTop=el("chatArea").scrollHeight;
+}
+function setStatus(msg,loading=false){
+  el("status").innerHTML=loading?`<span class='spinner-inline'></span>${msg}`:msg;
+}
+function addCard(m){
+  const imdbLink = m.title ? 
+    `https://www.imdb.com/find/?q=${encodeURIComponent(m.title)}` :
+    `https://www.imdb.com/`;
+  const div=document.createElement("div");
+  div.className="movie-card";
+  const img=m.poster_path?`<img src='https://image.tmdb.org/t/p/w500${m.poster_path}'/>`:"";
+  div.innerHTML=`${img}
+    <div class='info'>
+      <h5>${m.title||m.name}</h5>
+      <div>⭐ ${m.vote_average||"N/A"} | ${(m.release_date||m.first_air_date||"").slice(0,4)}</div>
+      <p>${m.overview?m.overview.slice(0,100)+"...":""}</p>
+      <a href="${imdbLink}" target="_blank">View on IMDb</a>
+    </div>`;
+  el("results").appendChild(div);
+}
+function cleanJson(raw){
+  let txt=raw.trim();
+  if(txt.startsWith("```")) txt=txt.split("```").slice(1).join("```");
+  const s=txt.indexOf("{"), e=txt.lastIndexOf("}");
+  return txt.substring(s,e+1);
+}
+async function aiAnalyze(){
+  const payload={model:FIREWORKS_MODEL,messages:conversation,max_tokens:512,temperature:0.3};
+  const res=await fetch("https://api.fireworks.ai/inference/v1/chat/completions",{
+    method:"POST",
+    headers:{"Authorization":`Bearer ${FIREWORKS_KEY}`,"Content-Type":"application/json"},
+    body:JSON.stringify(payload)
+  });
+  const data=await res.json();
+  const reply=data.choices?.[0]?.message?.content||"";
+  conversation.push({role:"assistant",content:reply});
+  return reply;
+}
+async function getPersonId(name){
+  if(!name) return null;
+  const res=await fetch(`https://api.themoviedb.org/3/search/person?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}`);
+  const data=await res.json();
+  return data.results?.[0]?.id||null;
+}
+async function getPersonCredits(pid,type){
+  const res=await fetch(`https://api.themoviedb.org/3/person/${pid}/${type}_credits?api_key=${TMDB_KEY}`);
+  const data=await res.json();
+  const all=[...(data.cast||[]),...(data.crew||[])];
+  const seen={}; return all.filter(m=>!seen[m.id]&&(seen[m.id]=1));
+}
+async function discover(type,filters){
+  const url=new URL(`https://api.themoviedb.org/3/discover/${type}`);
+  url.searchParams.set("api_key",TMDB_KEY);
+  url.searchParams.set("sort_by","popularity.desc");
+  if(filters.language) url.searchParams.set("with_original_language",filters.language);
+  if(filters.genre_id) url.searchParams.set("with_genres",filters.genre_id);
+  if(filters.year) url.searchParams.set("primary_release_year",filters.year);
+  if(filters.year_after) url.searchParams.set("primary_release_date.gte",`${filters.year_after}-01-01`);
+  if(filters.year_before) url.searchParams.set("primary_release_date.lte",`${filters.year_before}-12-31`);
+  if(filters.min_rating) url.searchParams.set("vote_average.gte",filters.min_rating);
+  const res=await fetch(url);
+  const data=await res.json();
+  return data.results||[];
+}
+async function handleRequest(req){
+  let items=[];
+  if(req.actor){
+    const pid=await getPersonId(req.actor);
+    if(pid){ items=await getPersonCredits(pid,req.type); }
+  } else if(req.director){
+    const pid=await getPersonId(req.director);
+    if(pid){ const all=await getPersonCredits(pid,req.type); items=all.filter(m=>m.job==="Director"); }
+  } else {
+    items=await discover(req.type,req);
+  }
+  if(req.genre_id) items=items.filter(m=>(m.genre_ids||[]).includes(Number(req.genre_id)));
+  if(req.year_after) items=items.filter(m=>(m.release_date||m.first_air_date||"").slice(0,4)>req.year_after);
+  if(req.year_before) items=items.filter(m=>(m.release_date||m.first_air_date||"").slice(0,4)<req.year_before);
+  if(req.min_rating) items=items.filter(m=>(m.vote_average||0)>=req.min_rating);
+  return items;
+}
+async function onAsk(){
+  const txt=el("userText").value.trim();
+  if(!txt) return;
+  el("results").innerHTML="";
+  append("user",txt);
+  conversation.push({role:"user",content:txt});
+  setStatus("Dobby is analyzing your request...",true);
+  try {
+    const raw=await aiAnalyze();
+    const parsed=JSON.parse(cleanJson(raw));
+    append("bot","🔍 "+(parsed.summary||"Searching..."));
+    contextFilters={...contextFilters,...Object.fromEntries(Object.entries(parsed).filter(([k,v])=>v))};
+    setStatus("Fetching from TMDB...",true);
+    const items=await handleRequest(contextFilters);
+    setStatus("");
+    if(!items.length){ append("bot","🚫 No results found."); return; }
+    items.slice(0,8).forEach(addCard);
+  } catch(e){
+    console.error(e);
+    append("bot","⚠️ Error: "+e.message);
+    setStatus("");
+  }
+}
+el("askBtn").addEventListener("click",onAsk);
+el("clearBtn").addEventListener("click",()=>{
+  el("chatArea").innerHTML="";
+  el("results").innerHTML="";
+  contextFilters={};
+  conversation=[{role:"system",content:ANALYSIS_PROMPT}];
+});
+el("userText").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){e.preventDefault();onAsk();}
+});
+
+// 🎥 Background loop videos
+const videos = ["smoke1.mp4","smoke2.mp4","smoke3.mp4","smoke4.mp4"];
+const bg = document.getElementById("bg");
+let current = 0;
+function playNext(){
+  bg.src = videos[current];
+  bg.load();
+  bg.play();
+}
+bg.addEventListener("ended",()=>{
+  current=(current+1)%videos.length;
+  playNext();
+});
+playNext();
+</script>
+</body>
+</html>
