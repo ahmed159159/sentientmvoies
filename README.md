@@ -1,4 +1,4 @@
-# **Sentient AI assistant ** 
+# Sentient AI assistant 
 
 Now you can easily access millions of movies and TV shows through IMDb!
 Ask about any:
